@@ -1,0 +1,29 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Grid Tariff Peak Shaver",
+        "description": "Point the integration at your HAN power sensor (instantaneous watts). Energy, smoothing, projection and the shed/restore engine are all handled internally.",
+        "data": {
+          "power_sensor": "HAN power sensor (W)",
+          "hourly_limit": "Hourly limit (kWh)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tuning",
+        "data": {
+          "shed_offset": "Shed offset below limit (kWh)",
+          "restore_offset": "Restore offset below limit (kWh)",
+          "smoothing_seconds": "Power smoothing window (s)",
+          "debounce_seconds": "Shed debounce (s)",
+          "settle_seconds": "Settle time between sheds (s)",
+          "restore_interval_seconds": "Minimum gap between restores (s)"
+        }
+      }
+    }
+  }
+}

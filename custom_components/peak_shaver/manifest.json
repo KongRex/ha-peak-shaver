@@ -1,0 +1,14 @@
+{
+  "domain": "peak_shaver",
+  "name": "Grid Tariff Peak Shaver",
+  "version": "1.0.0",
+  "documentation": "https://github.com/yourname/ha-peak-shaver",
+  "issue_tracker": "https://github.com/yourname/ha-peak-shaver/issues",
+  "dependencies": ["http", "frontend"],
+  "after_dependencies": ["logbook"],
+  "codeowners": ["@yourname"],
+  "requirements": [],
+  "iot_class": "local_push",
+  "config_flow": true,
+  "integration_type": "service"
+}

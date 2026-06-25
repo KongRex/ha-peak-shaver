@@ -1,0 +1,41 @@
+add_load:
+  name: Add load
+  description: Append an entity (switch, climate, group, etc.) to the shed-priority list.
+  fields:
+    item:
+      name: Entity
+      description: Entity ID to add (least critical added last).
+      required: true
+      selector:
+        entity:
+
+remove_load:
+  name: Remove load
+  description: Remove an entity from the priority list. If it is currently shed, it is restored first.
+  fields:
+    item:
+      name: Entity
+      description: Entity ID to remove.
+      required: true
+      selector:
+        entity:
+
+move_load:
+  name: Move load
+  description: Move an entity up (shed sooner) or down (shed later) in priority.
+  fields:
+    item:
+      name: Entity
+      description: Entity ID to move.
+      required: true
+      selector:
+        entity:
+    direction:
+      name: Direction
+      description: up = shed sooner, down = shed later.
+      required: true
+      selector:
+        select:
+          options:
+            - up
+            - down

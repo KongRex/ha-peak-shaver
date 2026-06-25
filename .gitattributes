@@ -1,0 +1,4 @@
+# Keep LF in the repository for all text — this integration runs on Linux (HA OS)
+* text=auto eol=lf
+*.png binary
+*.zip binary

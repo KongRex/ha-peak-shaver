@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Build/scratch artifacts
+/_stage/
+/_ziptmp/
+
+# Original packaging artifact (canonical source now lives in custom_components/)
+/peak_shaver_integration.zip
