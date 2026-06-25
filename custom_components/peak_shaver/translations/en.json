@@ -6,9 +6,21 @@
         "description": "Point the integration at your HAN power sensor (instantaneous watts). Energy, smoothing, projection and the shed/restore engine are all handled internally.",
         "data": {
           "power_sensor": "HAN power sensor (W)",
+          "hourly_limit": "Hourly limit (kWh)",
+          "show_all_sensors": "My sensor isn't listed (show all sensors)"
+        }
+      },
+      "pick_all": {
+        "title": "Select power sensor",
+        "description": "Showing every sensor entity (no power device-class filter). Pick the one reporting instantaneous power in watts.",
+        "data": {
+          "power_sensor": "Power sensor",
           "hourly_limit": "Hourly limit (kWh)"
         }
       }
+    },
+    "error": {
+      "no_sensor": "Select a power sensor, or tick 'show all sensors' to broaden the list."
     }
   },
   "options": {
