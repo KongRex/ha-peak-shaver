@@ -54,6 +54,9 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
         self._priority: list[str] = []
         self._shed: list[str] = []
         self._climate_modes: dict[str, str] = {}
+        # entry -> the exact non-climate members we switched OFF for that entry,
+        # so restore only turns those back on (not members that were already off).
+        self._shed_switches: dict[str, list[str]] = {}
         self._limit: float = self._opt(CONF_LIMIT, DEFAULT_LIMIT)
 
         # Energy accumulation state
@@ -126,6 +129,7 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
             self._priority = stored.get("priority", [])
             self._shed = stored.get("shed", [])
             self._climate_modes = stored.get("climate_modes", {})
+            self._shed_switches = stored.get("shed_switches", {})
             self._limit = stored.get("limit", self._limit)
 
         # Seed energy state from the current power reading if present
@@ -161,6 +165,7 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
                 "priority": self._priority,
                 "shed": self._shed,
                 "climate_modes": self._climate_modes,
+                "shed_switches": self._shed_switches,
                 "limit": self._limit,
             }
         )
@@ -298,30 +303,46 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
                 await self.hass.services.async_call(
                     "homeassistant", "turn_off", {"entity_id": other_on}, blocking=False
                 )
+            # Remember exactly what we actuated so restore only re-enables those.
+            self._shed_switches[entry] = other_on
             self._shed.append(entry)
             await self._save()
             self._log(f"Shed {entry}")
             return True
         return False
 
+    async def _restore_entry(self, entry: str) -> None:
+        """Re-enable exactly what we shed for ``entry`` — nothing that was already off.
+
+        Non-climate members come from ``_shed_switches`` (the set we switched off).
+        Climate members are restored only if we have a saved prior mode for them,
+        i.e. only those we turned off — a member that was already off is left alone.
+        """
+        members = self._expand(entry)
+        if entry in self._shed_switches:
+            switches = self._shed_switches[entry]
+        else:
+            # Legacy entry shed before per-member tracking existed: best effort.
+            switches = [m for m in members if not m.startswith("climate.")]
+        if switches:
+            await self.hass.services.async_call(
+                "homeassistant", "turn_on", {"entity_id": switches}, blocking=False
+            )
+        for m in members:
+            if m.startswith("climate.") and m in self._climate_modes:
+                mode = self._climate_modes.pop(m, "heat")
+                await self.hass.services.async_call(
+                    "climate", "set_hvac_mode",
+                    {"entity_id": m, "hvac_mode": mode}, blocking=False,
+                )
+
     async def _restore_last(self) -> bool:
         if not self._shed:
             return False
         entry = self._shed[-1]
-        members = self._expand(entry)
-        climate = [m for m in members if m.startswith("climate.")]
-        other = [m for m in members if not m.startswith("climate.")]
-        if other:
-            await self.hass.services.async_call(
-                "homeassistant", "turn_on", {"entity_id": other}, blocking=False
-            )
-        for m in climate:
-            mode = self._climate_modes.pop(m, "heat")
-            await self.hass.services.async_call(
-                "climate", "set_hvac_mode",
-                {"entity_id": m, "hvac_mode": mode}, blocking=False,
-            )
+        await self._restore_entry(entry)
         self._shed.pop()
+        self._shed_switches.pop(entry, None)
         await self._save()
         self._log(f"Restored {entry}")
         return True
@@ -357,20 +378,9 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
     async def async_remove_load(self, item: str) -> None:
         # If it was shed by us, restore it first
         if item in self._shed:
-            members = self._expand(item)
-            other = [m for m in members if not m.startswith("climate.")]
-            climate = [m for m in members if m.startswith("climate.")]
-            if other:
-                await self.hass.services.async_call(
-                    "homeassistant", "turn_on", {"entity_id": other}, blocking=False
-                )
-            for m in climate:
-                mode = self._climate_modes.pop(m, "heat")
-                await self.hass.services.async_call(
-                    "climate", "set_hvac_mode",
-                    {"entity_id": m, "hvac_mode": mode}, blocking=False,
-                )
+            await self._restore_entry(item)
             self._shed = [e for e in self._shed if e != item]
+            self._shed_switches.pop(item, None)
             self._log(f"Removed {item} — restored (was shed)")
         self._priority = [e for e in self._priority if e != item]
         await self._save()

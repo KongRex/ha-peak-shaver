@@ -71,7 +71,7 @@ absent here — there is no separate statistics entity to empty out).
 |------|------|---------|
 | `switch`, `light`, `fan`, `input_boolean` | `homeassistant.turn_off` | `homeassistant.turn_on` |
 | `climate` | `climate.turn_off` (prior hvac_mode stored) | `climate.set_hvac_mode` to stored mode |
-| `group` | expand, shed each member by its domain | restore each member |
+| `group` | expand, shed each on-member by its domain | restore only the members it shed |
 
 ## Tuning (options flow)
 

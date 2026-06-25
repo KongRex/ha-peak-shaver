@@ -85,8 +85,10 @@ consumer in `sensor.py` / `number.py` / `binary_sensor.py`):
 - `peak_shaver.move_load {item, direction: up|down}`
 
 **Persistence schema** (`Store` key `peak_shaver.<entry_id>`):
-`{priority: list, shed: list, climate_modes: dict, limit: float}`. Saved on
-every mutation via `coordinator._save()`.
+`{priority: list, shed: list, climate_modes: dict, shed_switches: dict, limit: float}`.
+`shed_switches` maps each shed entry → the exact non-climate members we switched
+off, so restore re-enables only those (not members already off). Saved on every
+mutation via `coordinator._save()`.
 
 ## 4. Engine internals (coordinator.py)
 
@@ -108,12 +110,17 @@ every mutation via `coordinator._save()`.
   - RESTORE: if `projection < restore_threshold` and `now >= _restore_next` and
     `shed` non-empty, call `_restore_last()` and set
     `_restore_next = now + restore_interval`.
-- **Domain-aware actions** (`_shed_next` / `_restore_last`):
+- **Domain-aware actions** (`_shed_next` / `_restore_entry` / `_restore_last`):
   - `_expand(entry)` recursively expands `group.` entities to leaf members.
-  - climate members → `climate.turn_off` to shed (prior `hvac_mode` saved into
-    `_climate_modes`); restore via `climate.set_hvac_mode` to the saved mode
-    (fallback `heat`).
-  - everything else → `homeassistant.turn_off` / `turn_on`.
+  - Shed acts only on members that are currently on; it records the non-climate
+    ones in `_shed_switches[entry]` and saves each climate member's prior
+    `hvac_mode` into `_climate_modes`.
+  - `_restore_entry(entry)` (used by both restore-last and remove) re-enables
+    **only** what was shed: non-climate members from `_shed_switches`, climate
+    members only if a saved mode exists for them. A member that was already off
+    at shed time is left untouched (no over-restore on mixed-state groups).
+  - everything else → `homeassistant.turn_off` / `turn_on`; climate →
+    `climate.turn_off` / `climate.set_hvac_mode` (fallback `heat`).
   - `_is_on`: climate active = state not in {off,unavailable,unknown}; else
     state == "on".
 - **Coordinator is intentionally `DataUpdateCoordinator(update_interval=None)`**.
