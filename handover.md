@@ -85,10 +85,13 @@ consumer in `sensor.py` / `number.py` / `binary_sensor.py`):
 - `peak_shaver.move_load {item, direction: up|down}`
 
 **Persistence schema** (`Store` key `peak_shaver.<entry_id>`):
-`{priority: list, shed: list, climate_modes: dict, shed_switches: dict, limit: float}`.
+`{priority: list, shed: list, climate_modes: dict, shed_switches: dict,
+last_toggle: dict, limit: float}`.
 `shed_switches` maps each shed entry → the exact non-climate members we switched
-off, so restore re-enables only those (not members already off). Saved on every
-mutation via `coordinator._save()`.
+off, so restore re-enables only those (not members already off). `last_toggle`
+maps entry → UTC epoch seconds of its last shed/restore, enforcing the per-device
+minimum toggle interval (persisted so it survives the options-change reload).
+Saved on every mutation via `coordinator._save()`.
 
 ## 4. Engine internals (coordinator.py)
 
@@ -110,6 +113,12 @@ mutation via `coordinator._save()`.
   - RESTORE: if `projection < restore_threshold` and `now >= _restore_next` and
     `shed` non-empty, call `_restore_last()` and set
     `_restore_next = now + restore_interval`.
+  - PER-DEVICE COOLDOWN (`min_toggle`, default 300 s, 0 disables): `_last_toggle`
+    records each entry's last shed/restore. `_shed_next` skips entries inside
+    their cooldown; `_restore_last` refuses to restore the top-of-stack entry
+    until its cooldown elapses (returns False → `_restore_next` not advanced, so
+    it retries each tick). Applies to BOTH directions, so it protects minimum
+    off-time *and* minimum on-time — the anti short-cycle guard for compressors.
 - **Domain-aware actions** (`_shed_next` / `_restore_entry` / `_restore_last`):
   - `_expand(entry)` recursively expands `group.` entities to leaf members.
   - Shed acts only on members that are currently on; it records the non-climate

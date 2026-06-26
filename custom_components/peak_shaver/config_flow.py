@@ -31,6 +31,7 @@ from .const import (
     CONF_DEBOUNCE,
     CONF_SETTLE,
     CONF_RESTORE_INTERVAL,
+    CONF_MIN_TOGGLE,
     DEFAULT_LIMIT,
     DEFAULT_SHED_OFFSET,
     DEFAULT_RESTORE_OFFSET,
@@ -38,6 +39,7 @@ from .const import (
     DEFAULT_DEBOUNCE,
     DEFAULT_SETTLE,
     DEFAULT_RESTORE_INTERVAL,
+    DEFAULT_MIN_TOGGLE,
 )
 
 
@@ -178,6 +180,10 @@ class PeakShaverOptionsFlow(OptionsFlow):
                     CONF_RESTORE_INTERVAL,
                     default=self._current(CONF_RESTORE_INTERVAL, DEFAULT_RESTORE_INTERVAL),
                 ): _num(30, 1800, 30, "s"),
+                vol.Required(
+                    CONF_MIN_TOGGLE,
+                    default=self._current(CONF_MIN_TOGGLE, DEFAULT_MIN_TOGGLE),
+                ): _num(0, 3600, 30, "s"),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

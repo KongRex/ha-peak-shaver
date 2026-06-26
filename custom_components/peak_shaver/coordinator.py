@@ -28,6 +28,7 @@ from .const import (
     CONF_DEBOUNCE,
     CONF_SETTLE,
     CONF_RESTORE_INTERVAL,
+    CONF_MIN_TOGGLE,
     DEFAULT_LIMIT,
     DEFAULT_SHED_OFFSET,
     DEFAULT_RESTORE_OFFSET,
@@ -35,6 +36,7 @@ from .const import (
     DEFAULT_DEBOUNCE,
     DEFAULT_SETTLE,
     DEFAULT_RESTORE_INTERVAL,
+    DEFAULT_MIN_TOGGLE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,6 +59,9 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
         # entry -> the exact non-climate members we switched OFF for that entry,
         # so restore only turns those back on (not members that were already off).
         self._shed_switches: dict[str, list[str]] = {}
+        # entry -> UTC epoch seconds of the last time we toggled it (shed OR restore).
+        # Enforces the per-device minimum toggle interval (anti short-cycle).
+        self._last_toggle: dict[str, float] = {}
         self._limit: float = self._opt(CONF_LIMIT, DEFAULT_LIMIT)
 
         # Energy accumulation state
@@ -101,6 +106,11 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
         return int(self._opt(CONF_RESTORE_INTERVAL, DEFAULT_RESTORE_INTERVAL))
 
     @property
+    def min_toggle(self) -> int:
+        """Minimum seconds between toggling the SAME device (0 disables)."""
+        return int(self._opt(CONF_MIN_TOGGLE, DEFAULT_MIN_TOGGLE))
+
+    @property
     def shed_threshold(self) -> float:
         return round(self._limit - self._opt(CONF_SHED_OFFSET, DEFAULT_SHED_OFFSET), 2)
 
@@ -130,6 +140,7 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
             self._shed = stored.get("shed", [])
             self._climate_modes = stored.get("climate_modes", {})
             self._shed_switches = stored.get("shed_switches", {})
+            self._last_toggle = stored.get("last_toggle", {})
             self._limit = stored.get("limit", self._limit)
 
         # Seed energy state from the current power reading if present
@@ -166,6 +177,7 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
                 "shed": self._shed,
                 "climate_modes": self._climate_modes,
                 "shed_switches": self._shed_switches,
+                "last_toggle": self._last_toggle,
                 "limit": self._limit,
             }
         )
@@ -281,11 +293,27 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
             return st.state not in ("off", "unavailable", "unknown")
         return st.state == "on"
 
+    # ---- per-device anti short-cycle ------------------------------------
+
+    def _in_cooldown(self, entry: str, now_ts: float) -> bool:
+        """True if ``entry`` was toggled less than ``min_toggle`` seconds ago."""
+        window = self.min_toggle
+        if window <= 0:
+            return False
+        last = self._last_toggle.get(entry)
+        return last is not None and (now_ts - last) < window
+
+    def _mark_toggle(self, entry: str, now_ts: float) -> None:
+        self._last_toggle[entry] = now_ts
+
     # ---- shed / restore --------------------------------------------------
 
     async def _shed_next(self) -> bool:
+        now_ts = dt_util.utcnow().timestamp()
         for entry in self._priority:
             if entry in self._shed:
+                continue
+            if self._in_cooldown(entry, now_ts):
                 continue
             members = self._expand(entry)
             climate_on = [m for m in members if m.startswith("climate.") and self._is_on(m)]
@@ -306,6 +334,7 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
             # Remember exactly what we actuated so restore only re-enables those.
             self._shed_switches[entry] = other_on
             self._shed.append(entry)
+            self._mark_toggle(entry, now_ts)
             await self._save()
             self._log(f"Shed {entry}")
             return True
@@ -340,9 +369,16 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
         if not self._shed:
             return False
         entry = self._shed[-1]
+        now_ts = dt_util.utcnow().timestamp()
+        # Honour the per-device minimum toggle interval: a device we just shed
+        # must not be switched back on until its cooldown has elapsed (protects
+        # compressors/boilers from short-cycling). Leave it shed and retry later.
+        if self._in_cooldown(entry, now_ts):
+            return False
         await self._restore_entry(entry)
         self._shed.pop()
         self._shed_switches.pop(entry, None)
+        self._mark_toggle(entry, now_ts)
         await self._save()
         self._log(f"Restored {entry}")
         return True
@@ -382,6 +418,7 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
             self._shed = [e for e in self._shed if e != item]
             self._shed_switches.pop(item, None)
             self._log(f"Removed {item} — restored (was shed)")
+        self._last_toggle.pop(item, None)
         self._priority = [e for e in self._priority if e != item]
         await self._save()
         self.async_set_updated_data(self._compute())

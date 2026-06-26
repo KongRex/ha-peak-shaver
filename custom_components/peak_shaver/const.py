@@ -13,6 +13,7 @@ CONF_SMOOTHING = "smoothing_seconds"
 CONF_DEBOUNCE = "debounce_seconds"
 CONF_SETTLE = "settle_seconds"
 CONF_RESTORE_INTERVAL = "restore_interval_seconds"
+CONF_MIN_TOGGLE = "min_toggle_seconds"
 
 # Defaults (mirror the original YAML behaviour at a 5 kWh limit)
 DEFAULT_LIMIT = 5.0
@@ -22,6 +23,7 @@ DEFAULT_SMOOTHING = 60             # rolling-mean window for power (s)
 DEFAULT_DEBOUNCE = 30              # projection must stay over for this long (s)
 DEFAULT_SETTLE = 90               # wait after each shed before shedding more (s)
 DEFAULT_RESTORE_INTERVAL = 300     # min gap between restores (s)
+DEFAULT_MIN_TOGGLE = 300           # min time between toggling the SAME device (s); 0 disables
 
 TICK_SECONDS = 10                  # engine evaluation cadence
 STORAGE_VERSION = 1

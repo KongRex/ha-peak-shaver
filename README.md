@@ -76,7 +76,14 @@ absent here — there is no separate statistics entity to empty out).
 ## Tuning (options flow)
 
 Settings → the integration → Configure: shed/restore offsets, smoothing window,
-debounce, settle time, restore interval.
+debounce, settle time, restore interval, and the per-device minimum toggle
+interval.
+
+**Minimum time between toggling a device** (default 5 min, `0` disables) is an
+anti short-cycle guard: once a load is shed or restored, that same device won't
+be toggled again until the interval elapses — in *either* direction, so it also
+enforces a minimum on-time. Set it to your heat pump / boiler compressor's
+minimum cycle time to stop it switching on and off too frequently.
 
 ## Honest status
 

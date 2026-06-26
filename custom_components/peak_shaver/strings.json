@@ -33,7 +33,8 @@
           "smoothing_seconds": "Power smoothing window (s)",
           "debounce_seconds": "Shed debounce (s)",
           "settle_seconds": "Settle time between sheds (s)",
-          "restore_interval_seconds": "Minimum gap between restores (s)"
+          "restore_interval_seconds": "Minimum gap between restores (s)",
+          "min_toggle_seconds": "Minimum time between toggling a device (s)"
         }
       }
     }
