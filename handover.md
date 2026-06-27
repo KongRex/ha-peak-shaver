@@ -227,6 +227,11 @@ Shaver. Hard-refresh the browser before adding `type: custom:peak-shaver-card`.
   base; one device per config entry.
 - Keep the integration self-contained: one user input (the power sensor). Resist
   reintroducing helper-entity dependencies (utility_meter/statistics/input_*).
+- **Bump `manifest.json` `version` whenever `peak-shaver-card.js` changes.** The
+  card is registered as `/peak_shaver/peak-shaver-card.js?v=<manifest version>`
+  (`_async_register_frontend`); the query is the browser cache-buster. Without a
+  bump, users keep getting the old cached card after an update (tell-tale: the
+  card renders but is missing newly added controls). Still advise a hard refresh.
 
 ---
 

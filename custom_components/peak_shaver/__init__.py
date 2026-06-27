@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 import homeassistant.helpers.config_validation as cv
+from homeassistant.loader import async_get_integration
 
 from .const import (
     DOMAIN,
@@ -50,7 +51,16 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     await hass.http.async_register_static_paths(
         [StaticPathConfig(FRONTEND_URL, path, False)]
     )
-    add_extra_js_url(hass, FRONTEND_URL)
+    # Append the integration version so browsers refetch the card after an update
+    # instead of serving a stale cached copy (the static path ignores the query).
+    version = "0"
+    try:
+        integration = await async_get_integration(hass, DOMAIN)
+        if integration.version:
+            version = str(integration.version)
+    except Exception:  # noqa: BLE001
+        pass
+    add_extra_js_url(hass, f"{FRONTEND_URL}?v={version}")
     hass.data[f"{DOMAIN}_frontend"] = True
 
 

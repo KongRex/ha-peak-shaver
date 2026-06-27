@@ -1,7 +1,7 @@
 {
   "domain": "peak_shaver",
   "name": "Grid Tariff Peak Shaver",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "documentation": "https://github.com/kongrex/ha-peak-shaver",
   "issue_tracker": "https://github.com/kongrex/ha-peak-shaver/issues",
   "dependencies": ["http", "frontend"],
