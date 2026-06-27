@@ -265,10 +265,14 @@ class PeakShaverCard extends HTMLElement {
   }
 }
 
-customElements.define("peak-shaver-card", PeakShaverCard);
+if (!customElements.get("peak-shaver-card")) {
+  customElements.define("peak-shaver-card", PeakShaverCard);
+}
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "peak-shaver-card",
-  name: "Peak Shaver Card",
-  description: "Reorder load-shed priority, set the kWh limit, and tune the per-device minimum toggle interval for the Peak Shaver integration",
-});
+if (!window.customCards.some((c) => c.type === "peak-shaver-card")) {
+  window.customCards.push({
+    type: "peak-shaver-card",
+    name: "Peak Shaver Card",
+    description: "Reorder load-shed priority, set the kWh limit, and tune the per-device minimum toggle interval for the Peak Shaver integration",
+  });
+}
