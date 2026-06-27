@@ -62,6 +62,9 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
         # entry -> UTC epoch seconds of the last time we toggled it (shed OR restore).
         # Enforces the per-device minimum toggle interval (anti short-cycle).
         self._last_toggle: dict[str, float] = {}
+        # entry -> per-device minimum toggle interval (s). Devices without an
+        # override fall back to the global `min_toggle` default.
+        self._toggle_overrides: dict[str, int] = {}
         self._limit: float = self._opt(CONF_LIMIT, DEFAULT_LIMIT)
 
         # Energy accumulation state
@@ -141,6 +144,7 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
             self._climate_modes = stored.get("climate_modes", {})
             self._shed_switches = stored.get("shed_switches", {})
             self._last_toggle = stored.get("last_toggle", {})
+            self._toggle_overrides = stored.get("toggle_overrides", {})
             self._limit = stored.get("limit", self._limit)
 
         # Seed energy state from the current power reading if present
@@ -178,6 +182,7 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
                 "climate_modes": self._climate_modes,
                 "shed_switches": self._shed_switches,
                 "last_toggle": self._last_toggle,
+                "toggle_overrides": self._toggle_overrides,
                 "limit": self._limit,
             }
         )
@@ -232,6 +237,8 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
             "priority": list(self._priority),
             "shed": list(self._shed),
             "shedding": bool(self._shed),
+            "default_toggle": self.min_toggle,
+            "toggle_intervals": {e: self._toggle_interval(e) for e in self._priority},
         }
 
     # ---- engine tick -----------------------------------------------------
@@ -295,9 +302,13 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
 
     # ---- per-device anti short-cycle ------------------------------------
 
+    def _toggle_interval(self, entry: str) -> int:
+        """Effective minimum toggle interval for ``entry`` (override or default)."""
+        return int(self._toggle_overrides.get(entry, self.min_toggle))
+
     def _in_cooldown(self, entry: str, now_ts: float) -> bool:
-        """True if ``entry`` was toggled less than ``min_toggle`` seconds ago."""
-        window = self.min_toggle
+        """True if ``entry`` was toggled less than its toggle interval ago."""
+        window = self._toggle_interval(entry)
         if window <= 0:
             return False
         last = self._last_toggle.get(entry)
@@ -419,7 +430,20 @@ class PeakShaverCoordinator(DataUpdateCoordinator):
             self._shed_switches.pop(item, None)
             self._log(f"Removed {item} — restored (was shed)")
         self._last_toggle.pop(item, None)
+        self._toggle_overrides.pop(item, None)
         self._priority = [e for e in self._priority if e != item]
+        await self._save()
+        self.async_set_updated_data(self._compute())
+
+    async def async_set_toggle_interval(self, item: str, seconds) -> None:
+        """Set the per-device minimum toggle interval (s) for a managed load."""
+        if item not in self._priority:
+            return
+        try:
+            value = max(0, int(round(float(seconds))))
+        except (ValueError, TypeError):
+            return
+        self._toggle_overrides[item] = value
         await self._save()
         self.async_set_updated_data(self._compute())
 

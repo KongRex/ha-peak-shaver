@@ -46,6 +46,16 @@ class PeakShaverCard extends HTMLElement {
     return st?.attributes?.shed || [];
   }
 
+  _intervals() {
+    const st = this._hass?.states[this._config.priority_entity];
+    return st?.attributes?.toggle_intervals || {};
+  }
+
+  _defaultToggle() {
+    const d = this._hass?.states[this._config.priority_entity]?.attributes?.default_toggle;
+    return typeof d === "number" ? d : 300;
+  }
+
   _limit() {
     return this._hass?.states[this._config.limit_entity]?.state ?? "5";
   }
@@ -61,7 +71,11 @@ class PeakShaverCard extends HTMLElement {
       })
       .join("|");
     return (
-      loads.join(",") + "#" + this._shed().join(",") + "#" + this._limit() + "#" + stateSig
+      loads.join(",") +
+      "#" + this._shed().join(",") +
+      "#" + this._limit() +
+      "#" + JSON.stringify(this._intervals()) +
+      "#" + stateSig
     );
   }
 
@@ -111,6 +125,8 @@ class PeakShaverCard extends HTMLElement {
     }
 
     const inList = new Set(loads);
+    const intervals = this._intervals();
+    const defToggle = this._defaultToggle();
     const avail = Object.keys(hass.states)
       .filter((e) => this._config.domains.includes(e.split(".")[0]))
       .filter((e) => !inList.has(e))
@@ -127,11 +143,19 @@ class PeakShaverCard extends HTMLElement {
         const badge = isShed
           ? `<span class="badge shed">SHED</span>`
           : `<span class="badge ${live ? "on" : "off"}">${label}</span>`;
+        const secs = typeof intervals[e] === "number" ? intervals[e] : defToggle;
+        const mins = secs / 60;
+        const mdisp = Number.isInteger(mins) ? mins : Math.round(mins * 10) / 10;
         return `
           <div class="row">
             <span class="rank">${i + 1}</span>
             <span class="name" title="${e}">${name}</span>
             ${badge}
+            <span class="iv" title="Minimum minutes between switching this device on/off">
+              <span class="ivc">&#9201;</span>
+              <input type="number" class="ival" data-e="${e}" min="0" max="60" step="0.5" value="${mdisp}">
+              <span class="ivu">min</span>
+            </span>
             <span class="btns">
               <button class="ic up"   data-e="${e}" ${i === 0 ? "disabled" : ""} title="Shed sooner">&#9650;</button>
               <button class="ic down" data-e="${e}" ${i === loads.length - 1 ? "disabled" : ""} title="Shed later">&#9660;</button>
@@ -168,6 +192,12 @@ class PeakShaverCard extends HTMLElement {
           .badge.on { color:var(--success-color,#43a047); background:rgba(67,160,71,.12); }
           .badge.off { color:var(--secondary-text-color); background:var(--secondary-background-color); }
           .badge.shed { color:var(--error-color); background:rgba(229,57,53,.12); text-transform:none; }
+          .iv { display:flex; align-items:center; gap:3px; color:var(--secondary-text-color); font-size:11px; }
+          .iv .ivc { font-size:13px; line-height:1; }
+          .iv input { width:44px; padding:4px 5px; border-radius:6px; border:1px solid var(--divider-color);
+                      background:var(--card-background-color); color:var(--primary-text-color);
+                      font-size:12px; text-align:right; }
+          .iv .ivu { color:var(--secondary-text-color); }
           .btns { display:flex; gap:4px; }
           button.ic { width:30px; height:30px; border:none; border-radius:6px; cursor:pointer;
                       background:var(--secondary-background-color); color:var(--primary-text-color); font-size:13px; line-height:1; }
@@ -185,7 +215,7 @@ class PeakShaverCard extends HTMLElement {
             <input type="number" class="lim" min="1" max="15" step="0.1" value="${limit}" ${this._config.limit_entity ? "" : "disabled"}>
             <span>kWh</span>
           </div>
-          <div class="hint">Top = shed first. &#9650; sooner &middot; &#9660; later &middot; &#10005; remove</div>
+          <div class="hint">Top = shed first &middot; &#9201; min minutes between on/off per device &middot; &#9650; sooner &middot; &#9660; later &middot; &#10005; remove</div>
           ${rows || '<div class="empty">No loads configured.</div>'}
           <div class="add"><select class="picker">${options}</select></div>
         </div>
@@ -199,6 +229,15 @@ class PeakShaverCard extends HTMLElement {
     );
     this.querySelectorAll("button.rm").forEach((b) =>
       b.addEventListener("click", () => this._svc("remove_load", { item: b.dataset.e }))
+    );
+    this.querySelectorAll("input.ival").forEach((inp) =>
+      inp.addEventListener("change", () => {
+        const m = parseFloat(inp.value);
+        if (!isNaN(m)) {
+          const secs = Math.max(0, Math.min(3600, Math.round(m * 60)));
+          this._svc("set_toggle_interval", { item: inp.dataset.e, seconds: secs });
+        }
+      })
     );
     const picker = this.querySelector("select.picker");
     if (picker)
@@ -231,5 +270,5 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "peak-shaver-card",
   name: "Peak Shaver Card",
-  description: "Reorder load-shed priority and set the kWh limit for the Peak Shaver integration",
+  description: "Reorder load-shed priority, set the kWh limit, and tune the per-device minimum toggle interval for the Peak Shaver integration",
 });

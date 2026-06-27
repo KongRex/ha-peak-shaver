@@ -18,8 +18,10 @@ from .const import (
     SERVICE_ADD,
     SERVICE_REMOVE,
     SERVICE_MOVE,
+    SERVICE_SET_INTERVAL,
     ATTR_ITEM,
     ATTR_DIRECTION,
+    ATTR_SECONDS,
 )
 from .coordinator import PeakShaverCoordinator
 
@@ -31,6 +33,12 @@ _MOVE_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ITEM): cv.string,
         vol.Required(ATTR_DIRECTION): vol.In(["up", "down"]),
+    }
+)
+_SET_INTERVAL_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ITEM): cv.string,
+        vol.Required(ATTR_SECONDS): vol.All(vol.Coerce(int), vol.Range(min=0, max=3600)),
     }
 )
 
@@ -66,9 +74,16 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         for c in _all_coordinators(hass):
             await c.async_move_load(call.data[ATTR_ITEM], call.data[ATTR_DIRECTION])
 
+    async def _set_interval(call: ServiceCall) -> None:
+        for c in _all_coordinators(hass):
+            await c.async_set_toggle_interval(call.data[ATTR_ITEM], call.data[ATTR_SECONDS])
+
     hass.services.async_register(DOMAIN, SERVICE_ADD, _add, schema=_ADD_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_REMOVE, _remove, schema=_REMOVE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_MOVE, _move, schema=_MOVE_SCHEMA)
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_INTERVAL, _set_interval, schema=_SET_INTERVAL_SCHEMA
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -98,6 +113,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator: PeakShaverCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
         await coordinator.async_shutdown()
         if not hass.data[DOMAIN]:
-            for svc in (SERVICE_ADD, SERVICE_REMOVE, SERVICE_MOVE):
+            for svc in (SERVICE_ADD, SERVICE_REMOVE, SERVICE_MOVE, SERVICE_SET_INTERVAL):
                 hass.services.async_remove(DOMAIN, svc)
     return unload_ok

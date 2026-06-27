@@ -49,6 +49,8 @@ Services (called by the card, usable in your own automations too):
 - `peak_shaver.add_load` { item }
 - `peak_shaver.remove_load` { item } — restores it first if currently shed
 - `peak_shaver.move_load` { item, direction: up|down }
+- `peak_shaver.set_toggle_interval` { item, seconds } — per-device minimum toggle
+  interval override (0–3600 s)
 
 ## How the engine works
 
@@ -84,6 +86,11 @@ anti short-cycle guard: once a load is shed or restored, that same device won't
 be toggled again until the interval elapses — in *either* direction, so it also
 enforces a minimum on-time. Set it to your heat pump / boiler compressor's
 minimum cycle time to stop it switching on and off too frequently.
+
+The options value is the **default** applied to every load. You can override it
+**per device** directly on the card — each row has a ⏱ minutes field — or via
+the `peak_shaver.set_toggle_interval` service. Per-device overrides persist and
+take precedence over the default.
 
 ## Honest status
 

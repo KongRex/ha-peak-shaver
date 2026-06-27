@@ -71,11 +71,15 @@ consumer in `sensor.py` / `number.py` / `binary_sensor.py`):
 | `priority` | list[str] | ordered entity entries, least-critical first |
 | `shed` | list[str] | entries currently shed by the engine (shed order) |
 | `shedding` | bool | `bool(shed)` |
+| `default_toggle` | int | global default min toggle interval (s) |
+| `toggle_intervals` | dict[str,int] | per-entry effective min toggle interval (s) |
 
 **Card auto-discovery contracts** (breaking these silently breaks the card):
 - `PrioritySensor.extra_state_attributes` must expose `integration: "peak_shaver"`,
   `loads`, and `shed`. The card finds the priority sensor by scanning for
-  `attributes.integration === "peak_shaver"`.
+  `attributes.integration === "peak_shaver"`. It also reads `toggle_intervals`
+  (entry → effective seconds) and `default_toggle` to render the per-device
+  minimum-toggle control; absent → the control falls back to 300 s.
 - The limit number's `unique_id`/entity_id must contain `hourly_limit`; the card
   finds it via `entity_id.includes("hourly_limit")`.
 
@@ -83,15 +87,18 @@ consumer in `sensor.py` / `number.py` / `binary_sensor.py`):
 - `peak_shaver.add_load {item}`
 - `peak_shaver.remove_load {item}` — restores the entity first if currently shed
 - `peak_shaver.move_load {item, direction: up|down}`
+- `peak_shaver.set_toggle_interval {item, seconds}` — per-device min toggle
+  interval override (0–3600 s); ignored if `item` is not in the priority list
 
 **Persistence schema** (`Store` key `peak_shaver.<entry_id>`):
 `{priority: list, shed: list, climate_modes: dict, shed_switches: dict,
-last_toggle: dict, limit: float}`.
+last_toggle: dict, toggle_overrides: dict, limit: float}`.
 `shed_switches` maps each shed entry → the exact non-climate members we switched
 off, so restore re-enables only those (not members already off). `last_toggle`
-maps entry → UTC epoch seconds of its last shed/restore, enforcing the per-device
-minimum toggle interval (persisted so it survives the options-change reload).
-Saved on every mutation via `coordinator._save()`.
+maps entry → UTC epoch seconds of its last shed/restore. `toggle_overrides` maps
+entry → its per-device min toggle interval (s); entries without an override fall
+back to the global `min_toggle` default. All persisted so they survive the
+options-change reload. Saved on every mutation via `coordinator._save()`.
 
 ## 4. Engine internals (coordinator.py)
 
@@ -113,12 +120,14 @@ Saved on every mutation via `coordinator._save()`.
   - RESTORE: if `projection < restore_threshold` and `now >= _restore_next` and
     `shed` non-empty, call `_restore_last()` and set
     `_restore_next = now + restore_interval`.
-  - PER-DEVICE COOLDOWN (`min_toggle`, default 300 s, 0 disables): `_last_toggle`
-    records each entry's last shed/restore. `_shed_next` skips entries inside
-    their cooldown; `_restore_last` refuses to restore the top-of-stack entry
-    until its cooldown elapses (returns False → `_restore_next` not advanced, so
-    it retries each tick). Applies to BOTH directions, so it protects minimum
-    off-time *and* minimum on-time — the anti short-cycle guard for compressors.
+  - PER-DEVICE COOLDOWN (anti short-cycle): `_last_toggle` records each entry's
+    last shed/restore. `_toggle_interval(entry)` returns the per-device override
+    (`_toggle_overrides`, set via the `set_toggle_interval` service / card) or the
+    global `min_toggle` default (options, default 300 s; 0 disables). `_shed_next`
+    skips entries inside their cooldown; `_restore_last` refuses to restore the
+    top-of-stack entry until its cooldown elapses (returns False → `_restore_next`
+    not advanced, so it retries each tick). Applies to BOTH directions, so it
+    protects minimum off-time *and* minimum on-time — e.g. a heat-pump compressor.
 - **Domain-aware actions** (`_shed_next` / `_restore_entry` / `_restore_last`):
   - `_expand(entry)` recursively expands `group.` entities to leaf members.
   - Shed acts only on members that are currently on; it records the non-climate

@@ -126,4 +126,6 @@ class PrioritySensor(PeakShaverEntity, SensorEntity):
             "integration": DOMAIN,
             "loads": self.coordinator.data.get("priority", []),
             "shed": self.coordinator.data.get("shed", []),
+            "toggle_intervals": self.coordinator.data.get("toggle_intervals", {}),
+            "default_toggle": self.coordinator.data.get("default_toggle"),
         }

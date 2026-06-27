@@ -39,3 +39,27 @@ move_load:
           options:
             - up
             - down
+
+set_toggle_interval:
+  name: Set toggle interval
+  description: >-
+    Set the per-device minimum time between toggling a load (anti short-cycle).
+    Overrides the global default for this one entity. 0 disables the guard for it.
+  fields:
+    item:
+      name: Entity
+      description: Entity ID already in the priority list.
+      required: true
+      selector:
+        entity:
+    seconds:
+      name: Minimum toggle interval
+      description: Minimum seconds between toggling this device (0 to disable).
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 3600
+          step: 30
+          unit_of_measurement: s
+          mode: box
